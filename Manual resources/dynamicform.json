@@ -3,10 +3,12 @@
         "label":  "Select user account",
         "fields":  [
                        {
-                           "key":  "searchfield",
+                           "key":  "searchValue",
                            "templateOptions":  {
-                                                   "label":  "Search",
-                                                   "placeholder":  "Username or email address"
+                                                   "label":  "Search (wildcard search in Name, Display name, UserPrincipalName and Mail)",
+                                                   "placeholder":  "Name, Display name, UserPrincipalName or Mail (use * to search all users)",
+                                                   "minLength":  1,
+                                                   "required":  true
                                                },
                            "type":  "input",
                            "summaryVisibility":  "Hide element",
@@ -22,24 +24,24 @@
                                                    "grid":  {
                                                                 "columns":  [
                                                                                 {
-                                                                                    "headerName":  "DisplayName",
-                                                                                    "field":  "displayName"
+                                                                                    "headerName":  "Display Name",
+                                                                                    "field":  "DisplayName"
                                                                                 },
                                                                                 {
-                                                                                    "headerName":  "UserPrincipalName",
+                                                                                    "headerName":  "User Principal Name",
                                                                                     "field":  "UserPrincipalName"
                                                                                 },
                                                                                 {
-                                                                                    "headerName":  "Department",
-                                                                                    "field":  "Department"
+                                                                                    "headerName":  "Account Expiration Date",
+                                                                                    "field":  "AccountExpirationDate"
                                                                                 },
                                                                                 {
-                                                                                    "headerName":  "Title",
-                                                                                    "field":  "Title"
+                                                                                    "headerName":  "Enabled",
+                                                                                    "field":  "Enabled"
                                                                                 },
                                                                                 {
-                                                                                    "headerName":  "Description",
-                                                                                    "field":  "Description"
+                                                                                    "headerName":  "Locked Out",
+                                                                                    "field":  "LockedOut"
                                                                                 }
                                                                             ],
                                                                 "height":  300,
@@ -50,15 +52,16 @@
                                                                             "input":  {
                                                                                           "propertyInputs":  [
                                                                                                                  {
-                                                                                                                     "propertyName":  "searchUser",
+                                                                                                                     "propertyName":  "searchValue",
                                                                                                                      "otherFieldValue":  {
-                                                                                                                                             "otherFieldKey":  "searchfield"
+                                                                                                                                             "otherFieldKey":  "searchValue"
                                                                                                                                          }
                                                                                                                  }
                                                                                                              ]
                                                                                       }
                                                                         },
-                                                   "useFilter":  false
+                                                   "useFilter":  true,
+                                                   "allowCsvDownload":  true
                                                },
                            "type":  "grid",
                            "summaryVisibility":  "Show",
@@ -72,46 +75,6 @@
         "label":  "Account expiration",
         "fields":  [
                        {
-                           "key":  "gridDetails",
-                           "templateOptions":  {
-                                                   "label":  "Basic attributes",
-                                                   "required":  false,
-                                                   "grid":  {
-                                                                "columns":  [
-                                                                                {
-                                                                                    "headerName":  "Name",
-                                                                                    "field":  "name"
-                                                                                },
-                                                                                {
-                                                                                    "headerName":  "Value",
-                                                                                    "field":  "value"
-                                                                                }
-                                                                            ],
-                                                                "height":  350,
-                                                                "rowSelection":  "single"
-                                                            },
-                                                   "dataSourceConfig":  {
-                                                                            "dataSourceGuid":  "$dataSourceGuid_1",
-                                                                            "input":  {
-                                                                                          "propertyInputs":  [
-                                                                                                                 {
-                                                                                                                     "propertyName":  "selectedUser",
-                                                                                                                     "otherFieldValue":  {
-                                                                                                                                             "otherFieldKey":  "gridUsers"
-                                                                                                                                         }
-                                                                                                                 }
-                                                                                                             ]
-                                                                                      }
-                                                                        },
-                                                   "useFilter":  false
-                                               },
-                           "type":  "grid",
-                           "summaryVisibility":  "Hide element",
-                           "requiresTemplateOptions":  true,
-                           "requiresKey":  true,
-                           "requiresDataSource":  true
-                       },
-                       {
                            "key":  "formRow",
                            "templateOptions":  {
 
@@ -120,13 +83,13 @@
                                               {
                                                   "key":  "blnExpDate",
                                                   "templateOptions":  {
-                                                                          "label":  "Account expiration",
+                                                                          "label":  "Account expiration set",
                                                                           "useSwitch":  true,
                                                                           "checkboxLabel":  "Yes",
                                                                           "useDataSource":  true,
                                                                           "displayField":  "expireDateSet",
                                                                           "dataSourceConfig":  {
-                                                                                                   "dataSourceGuid":  "$dataSourceGuid_2",
+                                                                                                   "dataSourceGuid":  "$dataSourceGuid_1",
                                                                                                    "input":  {
                                                                                                                  "propertyInputs":  [
                                                                                                                                         {
@@ -154,7 +117,7 @@
                                                                           "useDataSource":  true,
                                                                           "displayField":  "expireDate",
                                                                           "dataSourceConfig":  {
-                                                                                                   "dataSourceGuid":  "$dataSourceGuid_3",
+                                                                                                   "dataSourceGuid":  "$dataSourceGuid_2",
                                                                                                    "input":  {
                                                                                                                  "propertyInputs":  [
                                                                                                                                         {
