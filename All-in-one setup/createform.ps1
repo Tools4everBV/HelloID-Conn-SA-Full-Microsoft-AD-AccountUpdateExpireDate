@@ -6,7 +6,7 @@
 $portalUrl = "https://CUSTOMER.helloid.com"
 $apiKey = "API_KEY"
 $apiSecret = "API_SECRET"
-$delegatedFormAccessGroupNames = @("Users") #Only unique names are supported. Groups must exist!
+$delegatedFormAccessGroupNames = @("") #Only unique names are supported. Groups must exist!
 $delegatedFormCategories = @("Active Directory","User Management") #Only unique names are supported. Categories will be created if not exists
 $script:debugLogging = $false #Default value: $false. If $true, the HelloID resource GUIDs will be shown in the logging
 $script:duplicateForm = $false #Default value: $false. If $true, the HelloID resource names will be changed to import a duplicate Form
@@ -21,7 +21,7 @@ $tmpName = @'
 ADusersSearchOU
 '@ 
 $tmpValue = @'
-[{ "OU": "OU=Disabled Users,OU=HelloID Training,DC=veeken,DC=local"},{ "OU": "OU=Users,OU=HelloID Training,DC=veeken,DC=local"},{"OU": "OU=External,OU=HelloID Training,DC=veeken,DC=local"}]
+OU=Users,OU=enyoi,DC=enyoi,DC=local;OU=UsersLite,OU=enyoi,DC=enyoi,DC=local
 '@ 
 $globalHelloIDVariables.Add([PSCustomObject]@{name = $tmpName; value = $tmpValue; secret = "False"});
 
@@ -79,7 +79,7 @@ function Invoke-HelloIDGlobalVariable {
     try {
         $uri = ($script:PortalBaseUrl + "api/v1/automation/variables/named/$Name")
         $response = Invoke-RestMethod -Method Get -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false
-    
+
         if ([string]::IsNullOrEmpty($response.automationVariableGuid)) {
             #Create Variable
             $body = @{
@@ -89,7 +89,7 @@ function Invoke-HelloIDGlobalVariable {
                 ItemType = 0;
             }    
             $body = ConvertTo-Json -InputObject $body -Depth 100
-    
+
             $uri = ($script:PortalBaseUrl + "api/v1/automation/variable")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
             $variableGuid = $response.automationVariableGuid
@@ -115,14 +115,14 @@ function Invoke-HelloIDAutomationTask {
         [parameter()][String][AllowEmptyString()]$ForceCreateTask,
         [parameter(Mandatory)][Ref]$returnObject
     )
-    
+
     $TaskName = $TaskName + $(if ($script:duplicateForm -eq $true) { $script:duplicateFormSuffix })
 
     try {
         $uri = ($script:PortalBaseUrl +"api/v1/automationtasks?search=$TaskName&container=$AutomationContainer")
         $responseRaw = (Invoke-RestMethod -Method Get -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false) 
         $response = $responseRaw | Where-Object -filter {$_.name -eq $TaskName}
-    
+
         if([string]::IsNullOrEmpty($response.automationTaskGuid) -or $ForceCreateTask -eq $true) {
             #Create Task
 
@@ -135,7 +135,7 @@ function Invoke-HelloIDAutomationTask {
                 variables           = (ConvertFrom-Json-WithEmptyArray($Variables));
             }
             $body = ConvertTo-Json -InputObject $body -Depth 100
-    
+
             $uri = ($script:PortalBaseUrl +"api/v1/automationtasks/powershell")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
             $taskGuid = $response.automationTaskGuid
@@ -162,6 +162,7 @@ function Invoke-HelloIDDatasource {
         [parameter()][String][AllowEmptyString()]$DatasourcePsScript,        
         [parameter()][String][AllowEmptyString()]$DatasourceInput,
         [parameter()][String][AllowEmptyString()]$AutomationTaskGuid,
+        [parameter()][String][AllowEmptyString()]$DatasourceRunInCloud,
         [parameter(Mandatory)][Ref]$returnObject
     )
 
@@ -173,11 +174,11 @@ function Invoke-HelloIDDatasource {
         "3" { "Task data source"; break} 
         "4" { "Powershell data source"; break}
     }
-    
+
     try {
         $uri = ($script:PortalBaseUrl +"api/v1/datasource/named/$DatasourceName")
         $response = Invoke-RestMethod -Method Get -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false
-      
+    
         if([string]::IsNullOrEmpty($response.dataSourceGUID)) {
             #Create DataSource
             $body = @{
@@ -188,12 +189,13 @@ function Invoke-HelloIDDatasource {
                 value              = (ConvertFrom-Json-WithEmptyArray($DatasourceStaticValue));
                 script             = $DatasourcePsScript;
                 input              = (ConvertFrom-Json-WithEmptyArray($DatasourceInput));
+                runInCloud         = $DatasourceRunInCloud;
             }
             $body = ConvertTo-Json -InputObject $body -Depth 100
-      
+    
             $uri = ($script:PortalBaseUrl +"api/v1/datasource")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
-              
+            
             $datasourceGuid = $response.dataSourceGUID
             Write-Information "$datasourceTypeName '$DatasourceName' created$(if ($script:debugLogging -eq $true) { ": " + $datasourceGuid })"
         } else {
@@ -202,7 +204,7 @@ function Invoke-HelloIDDatasource {
             Write-Warning "$datasourceTypeName '$DatasourceName' already exists$(if ($script:debugLogging -eq $true) { ": " + $datasourceGuid })"
         }
     } catch {
-      Write-Error "$datasourceTypeName '$DatasourceName', message: $_"
+        Write-Error "$datasourceTypeName '$DatasourceName', message: $_"
     }
 
     $returnObject.Value = $datasourceGuid
@@ -214,7 +216,7 @@ function Invoke-HelloIDDynamicForm {
         [parameter(Mandatory)][String]$FormSchema,
         [parameter(Mandatory)][Ref]$returnObject
     )
-    
+
     $FormName = $FormName + $(if ($script:duplicateForm -eq $true) { $script:duplicateFormSuffix })
 
     try {
@@ -224,7 +226,7 @@ function Invoke-HelloIDDynamicForm {
         } catch {
             $response = $null
         }
-    
+
         if(([string]::IsNullOrEmpty($response.dynamicFormGUID)) -or ($response.isUpdated -eq $true)) {
             #Create Dynamic form
             $body = @{
@@ -232,10 +234,10 @@ function Invoke-HelloIDDynamicForm {
                 FormSchema = (ConvertFrom-Json-WithEmptyArray($FormSchema));
             }
             $body = ConvertTo-Json -InputObject $body -Depth 100
-    
+
             $uri = ($script:PortalBaseUrl +"api/v1/forms")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
-    
+
             $formGuid = $response.dynamicFormGUID
             Write-Information "Dynamic form '$formName' created$(if ($script:debugLogging -eq $true) { ": " + $formGuid })"
         } else {
@@ -271,7 +273,7 @@ function Invoke-HelloIDDelegatedForm {
         } catch {
             $response = $null
         }
-    
+
         if([string]::IsNullOrEmpty($response.delegatedFormGUID)) {
             #Create DelegatedForm
             $body = @{
@@ -288,10 +290,10 @@ function Invoke-HelloIDDelegatedForm {
                 }
             }
             $body = ConvertTo-Json -InputObject $body -Depth 100
-    
+
             $uri = ($script:PortalBaseUrl +"api/v1/delegatedforms")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
-    
+
             $delegatedFormGuid = $response.delegatedFormGUID
             Write-Information "Delegated form '$DelegatedFormName' created$(if ($script:debugLogging -eq $true) { ": " + $delegatedFormGuid })"
             $delegatedFormCreated = $true
@@ -313,7 +315,6 @@ function Invoke-HelloIDDelegatedForm {
     $returnObject.value.created = $delegatedFormCreated
 }
 
-
 <# Begin: HelloID Global Variables #>
 foreach ($item in $globalHelloIDVariables) {
 	Invoke-HelloIDGlobalVariable -Name $item.name -Value $item.value -Secret $item.secret 
@@ -322,99 +323,73 @@ foreach ($item in $globalHelloIDVariables) {
 
 
 <# Begin: HelloID Data sources #>
-<# Begin: DataSource "AD-user-get-attribute-expiredate-value" #>
-$tmpPsScript = @'
-$UserPrincipalName = $datasource.selectedUser.UserPrincipalName
-Write-information "Searching AD user [$userPrincipalName]"
- 
-try {
-    $adUser = Get-ADuser -Filter { UserPrincipalName -eq $userPrincipalName } -Properties AccountExpirationDate | Select AccountExpirationDate
-    Write-information "Found AD user [$userPrincipalName]"
-
-    #Default date for datetime selector 
-    $expDate = Get-Date -Format s     
-     
-    if(-not [String]::IsNullOrEmpty($($adUser.AccountExpirationDate))) {
-        $expDate = Get-Date $($adUser.AccountExpirationDate) -Format s        
-    }
-    
-    Write-output @{ expireDate = "$expDate" }
-    
-    Write-information "Account AccountExpirationDate: $expDate"  
-} catch {
-    Write-error "Error retrieving AD user [$userPrincipalName] account status. Error: $($_.Exception.Message)" -Event Error     
-    return
-}
-'@ 
-$tmpModel = @'
-[{"key":"expireDate","type":0}]
-'@ 
-$tmpInput = @'
-[{"description":null,"translateDescription":false,"inputFieldType":1,"key":"selectedUser","type":0,"options":1}]
-'@ 
-$dataSourceGuid_3 = [PSCustomObject]@{} 
-$dataSourceGuid_3_Name = @'
-AD-user-get-attribute-expiredate-value
-'@ 
-Invoke-HelloIDDatasource -DatasourceName $dataSourceGuid_3_Name -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript $tmpPsScript -DatasourceModel $tmpModel -returnObject ([Ref]$dataSourceGuid_3) 
-<# End: DataSource "AD-user-get-attribute-expiredate-value" #>
-
-<# Begin: DataSource "AD-user-generate-table-attributes-basic-update-account-expires" #>
-$tmpPsScript = @'
-try {
-    $userPrincipalName = $dataSource.selectedUser.UserPrincipalName
-    Write-Information "Searching AD user [$userPrincipalName]"
-     
-    $adUser = Get-ADuser -Filter { UserPrincipalName -eq $userPrincipalName } -Properties displayname, samaccountname, userPrincipalName, mail, employeeID, Enabled | Select-Object displayname, samaccountname, userPrincipalName, mail, employeeID, Enabled
-    Write-Information -Message "Finished searching AD user [$userPrincipalName]"
-     
-    foreach($tmp in $adUser.psObject.properties)
-    {
-        $returnObject = @{name=$tmp.Name; value=$tmp.value}
-        Write-Output $returnObject
-    }
-     
-    Write-Information "Finished retrieving AD user [$userPrincipalName] basic attributes"
-} catch {
-    Write-Error "Error retrieving AD user [$userPrincipalName] basic attributes. Error: $($_.Exception.Message)"
-}
-'@ 
-$tmpModel = @'
-[{"key":"value","type":0},{"key":"name","type":0}]
-'@ 
-$tmpInput = @'
-[{"description":null,"translateDescription":false,"inputFieldType":1,"key":"selectedUser","type":0,"options":1}]
-'@ 
-$dataSourceGuid_1 = [PSCustomObject]@{} 
-$dataSourceGuid_1_Name = @'
-AD-user-generate-table-attributes-basic-update-account-expires
-'@ 
-Invoke-HelloIDDatasource -DatasourceName $dataSourceGuid_1_Name -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript $tmpPsScript -DatasourceModel $tmpModel -returnObject ([Ref]$dataSourceGuid_1) 
-<# End: DataSource "AD-user-generate-table-attributes-basic-update-account-expires" #>
-
 <# Begin: DataSource "AD-user-get-attribute-expiredate-set" #>
 $tmpPsScript = @'
-$UserPrincipalName = $datasource.selectedUser.UserPrincipalName
-Write-information "Searching AD user [$userPrincipalName]"
- 
+# Variables configured in datasource
+$selectedUser = $datasource.selectedUser
+
+# Fixed values
+$propertiesToSelect = @(
+    "ObjectGuid",
+    "UserPrincipalName",
+    "AccountExpirationDate"
+) # Properties to select from Microsoft AD, comma separated
+
+# Set debug logging
+$VerbosePreference = "SilentlyContinue"
+$InformationPreference = "Continue"
+$WarningPreference = "Continue"
+
 try {
-    $adUser = Get-ADuser -Filter { UserPrincipalName -eq $userPrincipalName } -Properties AccountExpirationDate | Select AccountExpirationDate
-    Write-information "Found AD user [$userPrincipalName]"
-     
-    $expDate = $adUser.AccountExpirationDate
-    Write-information "dateset: $expDate"
-     
-    if([String]::IsNullOrEmpty($expDate) -eq $true) {
-        $expireDateSet = $False         
-    } else {
-        $expireDateSet = $True
+    $actionMessage = "querying AD user [$($selectedUser.UserPrincipalName)] to check AccountExpirationDate status"
+
+    $getADUserSplatParams = @{
+        Filter      = "UserPrincipalName -eq '$($selectedUser.UserPrincipalName)'"
+        Properties  = $propertiesToSelect
+        Verbose     = $false
+        ErrorAction = "Stop"
     }
-     
-    Write-information "Account AccountExpirationDate: $expireDateSet"     
-    Write-output @{ expireDateSet = $expireDateSet }
-} catch {
-    Write-error "Error retrieving AD user [$userPrincipalName] account status. Error: $($_.Exception.Message)"
-    return
+    
+    $adUser = Get-ADUser @getADUserSplatParams | Select-Object -Property $propertiesToSelect
+
+    Write-Information "Queried AD user [$($selectedUser.UserPrincipalName)]. Result: $(if ($null -ne $adUser) { 'Found' } else { 'Not found' })"
+
+    if ($null -ne $adUser) {
+        $expDate = $adUser.AccountExpirationDate
+        
+        if ([String]::IsNullOrEmpty($expDate) -eq $true) {
+            $expireDateSet = $false
+        }
+        else {
+            $expireDateSet = $true
+        }
+        
+        Write-Information "Account AccountExpirationDate for user [$($selectedUser.UserPrincipalName)]: $(if ($expireDateSet) { "Set to [$expDate]" } else { 'Not set' })"
+        
+        # Output result
+        Write-Output @{ 
+            expireDateSet = $expireDateSet
+        }
+    }
+    else {
+        Write-Warning "AD user [$($selectedUser.UserPrincipalName)] not found"
+        Write-Output @{ 
+            expireDateSet = $false
+        }
+    }
+}
+catch {
+    $ex = $PSItem
+    $auditMessage = "Error $($actionMessage). Error: $($ex.Exception.Message)"
+    $warningMessage = "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+
+    Write-Warning $warningMessage
+    Write-Error $auditMessage
+    
+    # Output default values on error
+    Write-Output @{ 
+        expireDateSet = $false
+    }
 }
 '@ 
 $tmpModel = @'
@@ -423,70 +398,189 @@ $tmpModel = @'
 $tmpInput = @'
 [{"description":null,"translateDescription":false,"inputFieldType":1,"key":"selectedUser","type":0,"options":1}]
 '@ 
-$dataSourceGuid_2 = [PSCustomObject]@{} 
-$dataSourceGuid_2_Name = @'
+$dataSourceGuid_1 = [PSCustomObject]@{} 
+$dataSourceGuid_1_Name = @'
 AD-user-get-attribute-expiredate-set
 '@ 
-Invoke-HelloIDDatasource -DatasourceName $dataSourceGuid_2_Name -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript $tmpPsScript -DatasourceModel $tmpModel -returnObject ([Ref]$dataSourceGuid_2) 
+Invoke-HelloIDDatasource -DatasourceName $dataSourceGuid_1_Name -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript $tmpPsScript -DatasourceModel $tmpModel -DataSourceRunInCloud "False" -returnObject ([Ref]$dataSourceGuid_1) 
 <# End: DataSource "AD-user-get-attribute-expiredate-set" #>
 
-<# Begin: DataSource "AD-user-generate-table-wildcard-update-account-expires" #>
+<# Begin: DataSource "AD-user-get-attribute-expiredate-value" #>
 $tmpPsScript = @'
+# Variables configured in datasource
+$selectedUser = $datasource.selectedUser
+
+# Fixed values
+$propertiesToSelect = @(
+    "ObjectGuid",
+    "UserPrincipalName",
+    "AccountExpirationDate"
+) # Properties to select from Microsoft AD, comma separated
+
+# Set debug logging
+$VerbosePreference = "SilentlyContinue"
+$InformationPreference = "Continue"
+$WarningPreference = "Continue"
+
 try {
-    $searchValue = $dataSource.searchUser
-    $searchQuery = "*$searchValue*"
-    $searchOUs = $ADusersSearchOU
-     
-     
-    if([String]::IsNullOrEmpty($searchValue) -eq $true){
-        return
-    }else{
-        Write-Information "SearchQuery: $searchQuery"
-        Write-Information "SearchBase: $searchOUs"
-         
-        $ous = $searchOUs | ConvertFrom-Json
-        $users = foreach($item in $ous) {
-            Get-ADUser -Filter {Name -like $searchQuery -or DisplayName -like $searchQuery -or userPrincipalName -like $searchQuery -or mail -like $searchQuery} -SearchBase $item.ou -properties SamAccountName, displayName, UserPrincipalName, Description, company, Department, Title
+    $actionMessage = "querying AD user [$($selectedUser.UserPrincipalName)] to get AccountExpirationDate"
+
+    $getADUserSplatParams = @{
+        Filter      = "UserPrincipalName -eq '$($selectedUser.UserPrincipalName)'"
+        Properties  = $propertiesToSelect
+        Verbose     = $false
+        ErrorAction = "Stop"
+    }
+    
+    $adUser = Get-ADUser @getADUserSplatParams | Select-Object -Property $propertiesToSelect
+
+    Write-Information "Queried AD user [$($selectedUser.UserPrincipalName)]. Result: $(if ($null -ne $adUser) { 'Found' } else { 'Not found' })"
+
+    if ($null -ne $adUser) {
+        # Default date for datetime selector (use current date if no expiration date is set)
+        if (-not [String]::IsNullOrEmpty($adUser.AccountExpirationDate)) {
+            $expDate = Get-Date $adUser.AccountExpirationDate -Format s
         }
-         
-        $users = $users | Sort-Object -Property DisplayName
-        $resultCount = @($users).Count
-        Write-Information "Result count: $resultCount"
-         
-        if($resultCount -gt 0){
-            foreach($user in $users){
-                $returnObject = @{SamAccountName=$user.SamAccountName; displayName=$user.displayName; UserPrincipalName=$user.UserPrincipalName; Description=$user.Description; Company=$user.company; Department=$user.Department; Title=$user.Title;}
-                Write-Output $returnObject
-            }
+        else {
+            $expDate = Get-Date -Format s
+        }
+        
+        Write-Information "Account AccountExpirationDate for user [$($selectedUser.UserPrincipalName)]: $expDate"
+        
+        # Output result
+        Write-Output @{ 
+            expireDate = "$expDate"
         }
     }
-} catch {
-    $msg = "Error searching AD user [$searchValue]. Error: $($_.Exception.Message)"
-    Write-Error $msg
+    else {
+        Write-Warning "AD user [$($selectedUser.UserPrincipalName)] not found"
+        
+        # Output default date
+        $expDate = Get-Date -Format s
+        Write-Output @{ 
+            expireDate = "$expDate"
+        }
+    }
+}
+catch {
+    $ex = $PSItem
+    $auditMessage = "Error $($actionMessage). Error: $($ex.Exception.Message)"
+    $warningMessage = "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+
+    Write-Warning $warningMessage
+    Write-Error $auditMessage
+    
+    # Output default date on error
+    $expDate = Get-Date -Format s
+    Write-Output @{ 
+        expireDate = "$expDate"
+    }
 }
 '@ 
 $tmpModel = @'
-[{"key":"Description","type":0},{"key":"SamAccountName","type":0},{"key":"Title","type":0},{"key":"Company","type":0},{"key":"Department","type":0},{"key":"displayName","type":0},{"key":"UserPrincipalName","type":0}]
+[{"key":"expireDate","type":0}]
 '@ 
 $tmpInput = @'
-[{"description":null,"translateDescription":false,"inputFieldType":1,"key":"searchUser","type":0,"options":1}]
+[{"description":null,"translateDescription":false,"inputFieldType":1,"key":"selectedUser","type":0,"options":1}]
+'@ 
+$dataSourceGuid_2 = [PSCustomObject]@{} 
+$dataSourceGuid_2_Name = @'
+AD-user-get-attribute-expiredate-value
+'@ 
+Invoke-HelloIDDatasource -DatasourceName $dataSourceGuid_2_Name -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript $tmpPsScript -DatasourceModel $tmpModel -DataSourceRunInCloud "False" -returnObject ([Ref]$dataSourceGuid_2) 
+<# End: DataSource "AD-user-get-attribute-expiredate-value" #>
+
+<# Begin: DataSource "AD - Account - Update account expires | AD-Get-All-Users-Wildcard-Name-DisplayName-UPN-Mail" #>
+$tmpPsScript = @'
+# Variables configured in form
+$searchValue = $dataSource.searchValue
+if ($searchValue -eq "*") {
+    $filter = "Name -like '*'"
+}
+else {
+    $filter = "Name -like '*$searchValue*' -or DisplayName -like '*$searchValue*' -or userPrincipalName -like '*$searchValue*' -or mail -like '*$searchValue*'"
+}
+
+# Global variables
+$searchOUs = $AdUsersSearchOu
+
+# Fixed values
+$propertiesToSelect = @(
+    "ObjectGuid",
+    "SamAccountName",
+    "DisplayName",
+    "UserPrincipalName",
+    "Enabled",
+    "LockedOut",
+    "AccountExpirationDate"
+) # Properties to select from Microsoft AD, comma separated
+
+# Set debug logging
+$VerbosePreference = "SilentlyContinue"
+$InformationPreference = "Continue"
+$WarningPreference = "Continue"
+
+try {
+    #region Searching user
+    $actionMessage = "querying AD account(s) matching the filter [$filter] in OU(s) [$($searchOUs)]"
+
+    $ous = $searchOUs -split ';'
+    $adUsers = [System.Collections.ArrayList]@()
+    foreach ($ou in $ous) {
+        $actionMessage = "querying AD account(s) matching the filter [$filter] in OU [$($ou)]"
+        $getAdUsersSplatParams = @{
+            Filter      = $filter
+            Searchbase  = $ou
+            Properties  = $propertiesToSelect
+            Verbose     = $False
+            ErrorAction = "Stop"
+        }
+        $getAdUsersResponse = Get-AdUser @getAdUsersSplatParams | Select-Object -Property $propertiesToSelect
+
+        if ($getAdUsersResponse -is [array]) {
+            [void]$adUsers.AddRange($getAdUsersResponse)
+        }
+        else {
+            [void]$adUsers.Add($getAdUsersResponse)
+        }
+    }
+    Write-Information "Queried AD account(s) matching the filter [$filter] in OU(s) [$($searchOUs)]. Result count: $(($adUsers | Measure-Object).Count)"
+
+    # Sort and Send results to HelloID
+    $actionMessage = "sending results to HelloID"
+    $adUsers | ForEach-Object {
+        Write-Output $_
+    } 
+}
+catch {
+    $ex = $PSItem
+    Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+    Write-Error "Error $($actionMessage). Error: $($ex.Exception.Message)"
+    # exit # use when using multiple try/catch and the script must stop
+}
+'@ 
+$tmpModel = @'
+[{"key":"ObjectGuid","type":0},{"key":"SamAccountName","type":0},{"key":"DisplayName","type":0},{"key":"UserPrincipalName","type":0},{"key":"Enabled","type":0},{"key":"LockedOut","type":0},{"key":"AccountExpirationDate","type":0}]
+'@ 
+$tmpInput = @'
+[{"description":null,"translateDescription":false,"inputFieldType":1,"key":"searchValue","type":0,"options":1}]
 '@ 
 $dataSourceGuid_0 = [PSCustomObject]@{} 
 $dataSourceGuid_0_Name = @'
-AD-user-generate-table-wildcard-update-account-expires
+AD - Account - Update account expires | AD-Get-All-Users-Wildcard-Name-DisplayName-UPN-Mail
 '@ 
-Invoke-HelloIDDatasource -DatasourceName $dataSourceGuid_0_Name -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript $tmpPsScript -DatasourceModel $tmpModel -returnObject ([Ref]$dataSourceGuid_0) 
-<# End: DataSource "AD-user-generate-table-wildcard-update-account-expires" #>
+Invoke-HelloIDDatasource -DatasourceName $dataSourceGuid_0_Name -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript $tmpPsScript -DatasourceModel $tmpModel -DataSourceRunInCloud "False" -returnObject ([Ref]$dataSourceGuid_0) 
+<# End: DataSource "AD - Account - Update account expires | AD-Get-All-Users-Wildcard-Name-DisplayName-UPN-Mail" #>
 <# End: HelloID Data sources #>
 
-<# Begin: Dynamic Form "AD Account - Update account expires" #>
+<# Begin: Dynamic Form "AD - Account - Update account expires" #>
 $tmpSchema = @"
-[{"label":"Select user account","fields":[{"key":"searchfield","templateOptions":{"label":"Search","placeholder":"Username or email address"},"type":"input","summaryVisibility":"Hide element","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":false},{"key":"gridUsers","templateOptions":{"label":"Select user","required":true,"grid":{"columns":[{"headerName":"DisplayName","field":"displayName"},{"headerName":"UserPrincipalName","field":"UserPrincipalName"},{"headerName":"Department","field":"Department"},{"headerName":"Title","field":"Title"},{"headerName":"Description","field":"Description"}],"height":300,"rowSelection":"single"},"dataSourceConfig":{"dataSourceGuid":"$dataSourceGuid_0","input":{"propertyInputs":[{"propertyName":"searchUser","otherFieldValue":{"otherFieldKey":"searchfield"}}]}},"useFilter":false},"type":"grid","summaryVisibility":"Show","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":true}]},{"label":"Account expiration","fields":[{"key":"gridDetails","templateOptions":{"label":"Basic attributes","required":false,"grid":{"columns":[{"headerName":"Name","field":"name"},{"headerName":"Value","field":"value"}],"height":350,"rowSelection":"single"},"dataSourceConfig":{"dataSourceGuid":"$dataSourceGuid_1","input":{"propertyInputs":[{"propertyName":"selectedUser","otherFieldValue":{"otherFieldKey":"gridUsers"}}]}},"useFilter":false},"type":"grid","summaryVisibility":"Hide element","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":true},{"key":"formRow","templateOptions":{},"fieldGroup":[{"key":"blnExpDate","templateOptions":{"label":"Account expiration","useSwitch":true,"checkboxLabel":"Yes","useDataSource":true,"displayField":"expireDateSet","dataSourceConfig":{"dataSourceGuid":"$dataSourceGuid_2","input":{"propertyInputs":[{"propertyName":"selectedUser","otherFieldValue":{"otherFieldKey":"gridUsers"}}]}},"useFilter":false},"type":"boolean","summaryVisibility":"Show","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":false},{"key":"expireDate","templateOptions":{"label":"Expire date","dateOnly":true,"useDataSource":true,"displayField":"expireDate","dataSourceConfig":{"dataSourceGuid":"$dataSourceGuid_3","input":{"propertyInputs":[{"propertyName":"selectedUser","otherFieldValue":{"otherFieldKey":"gridUsers"}}]}}},"hideExpression":"!model[\"blnExpDate\"]","type":"datetime","summaryVisibility":"Show","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":false}],"type":"formrow","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":false}]}]
+[{"label":"Select user account","fields":[{"key":"searchValue","templateOptions":{"label":"Search (wildcard search in Name, Display name, UserPrincipalName and Mail)","placeholder":"Name, Display name, UserPrincipalName or Mail (use * to search all users)","minLength":1,"required":true},"type":"input","summaryVisibility":"Hide element","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":false},{"key":"gridUsers","templateOptions":{"label":"Select user","required":true,"grid":{"columns":[{"headerName":"Display Name","field":"DisplayName"},{"headerName":"User Principal Name","field":"UserPrincipalName"},{"headerName":"Account Expiration Date","field":"AccountExpirationDate"},{"headerName":"Enabled","field":"Enabled"},{"headerName":"Locked Out","field":"LockedOut"}],"height":300,"rowSelection":"single"},"dataSourceConfig":{"dataSourceGuid":"$dataSourceGuid_0","input":{"propertyInputs":[{"propertyName":"searchValue","otherFieldValue":{"otherFieldKey":"searchValue"}}]}},"useFilter":true,"allowCsvDownload":true},"type":"grid","summaryVisibility":"Show","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":true}]},{"label":"Account expiration","fields":[{"key":"formRow","templateOptions":{},"fieldGroup":[{"key":"blnExpDate","templateOptions":{"label":"Account expiration set","useSwitch":true,"checkboxLabel":"Yes","useDataSource":true,"displayField":"expireDateSet","dataSourceConfig":{"dataSourceGuid":"$dataSourceGuid_1","input":{"propertyInputs":[{"propertyName":"selectedUser","otherFieldValue":{"otherFieldKey":"gridUsers"}}]}},"useFilter":false},"type":"boolean","summaryVisibility":"Show","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":false},{"key":"expireDate","templateOptions":{"label":"Expire date","dateOnly":true,"useDataSource":true,"displayField":"expireDate","dataSourceConfig":{"dataSourceGuid":"$dataSourceGuid_2","input":{"propertyInputs":[{"propertyName":"selectedUser","otherFieldValue":{"otherFieldKey":"gridUsers"}}]}}},"hideExpression":"!model[\"blnExpDate\"]","type":"datetime","summaryVisibility":"Show","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":false}],"type":"formrow","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":false}]}]
 "@ 
 
 $dynamicFormGuid = [PSCustomObject]@{} 
 $dynamicFormName = @'
-AD Account - Update account expires
+AD - Account - Update account expires
 '@ 
 Invoke-HelloIDDynamicForm -FormName $dynamicFormName -FormSchema $tmpSchema  -returnObject ([Ref]$dynamicFormGuid) 
 <# END: Dynamic Form #>
@@ -500,7 +594,7 @@ if(-not[String]::IsNullOrEmpty($delegatedFormAccessGroupNames)){
             $response = Invoke-RestMethod -Method Get -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false
             $delegatedFormAccessGroupGuid = $response.groupGuid
             $delegatedFormAccessGroupGuids += $delegatedFormAccessGroupGuid
-            
+        
             Write-Information "HelloID (access)group '$group' successfully found$(if ($script:debugLogging -eq $true) { ": " + $delegatedFormAccessGroupGuid })"
         } catch {
             Write-Error "HelloID (access)group '$group', message: $_"
@@ -517,10 +611,10 @@ foreach($category in $delegatedFormCategories) {
         $uri = ($script:PortalBaseUrl +"api/v1/delegatedformcategories/$category")
         $response = Invoke-RestMethod -Method Get -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false
         $response = $response | Where-Object {$_.name.en -eq $category}
-	
+    
         $tmpGuid = $response.delegatedFormCategoryGuid
         $delegatedFormCategoryGuids += $tmpGuid
-        
+    
         Write-Information "HelloID Delegated Form category '$category' successfully found$(if ($script:debugLogging -eq $true) { ": " + $tmpGuid })"
     } catch {
         Write-Warning "HelloID Delegated Form category '$category' not found"
@@ -543,10 +637,10 @@ $delegatedFormCategoryGuids = (ConvertTo-Json -InputObject $delegatedFormCategor
 <# Begin: Delegated Form #>
 $delegatedFormRef = [PSCustomObject]@{guid = $null; created = $null} 
 $delegatedFormName = @'
-AD Account - Update account expires
+AD - Account - Update account expires
 '@
 $tmpTask = @'
-{"name":"AD Account - Update account expires","script":"$blnexpdate =  $form.blnExpDate\r\n$expDate = $form.expireDate\r\n$userPrincipalName = $form.gridUsers.UserPrincipalName\r\n\r\ntry {\r\n    $adUser = Get-ADuser -Filter { UserPrincipalName -eq $userPrincipalName }\r\n    Write-Information \"Found AD user [$userPrincipalName]\"    \r\n} catch {\r\n    Write-Error \"Could not find AD user [$userPrincipalName]. Error: $($_.Exception.Message)\"\r\n}\r\n \r\ntry {\r\n    if($blnexpdate -ne \u0027true\u0027){\r\n        $expDate = $null\r\n    } else {\r\n        $expDate = [Datetime]$expDate\r\n        $expDate = $expDate.AddDays(1)\r\n    }\r\n    \r\n    Set-ADAccountExpiration -Identity $adUser -DateTime $expDate\r\n     \r\n    Write-Information \"Finished update attribute [expireDate] of AD user [$userPrincipalName] to [$expDate]\"\r\n    $Log = @{\r\n            Action            = \"UpdateAccount\" # optional. ENUM (undefined = default) \r\n            System            = \"ActiveDirectory\" # optional (free format text) \r\n            Message           = \"Successfully updated attribute [expireDate] of AD user [$userPrincipalName] to [$expDate]\" # required (free format text) \r\n            IsError           = $false # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) \r\n            TargetDisplayName = $adUser.name # optional (free format text) \r\n            TargetIdentifier  = $([string]$adUser.SID) # optional (free format text) \r\n        }\r\n    #send result back  \r\n    Write-Information -Tags \"Audit\" -MessageData $log    \r\n} catch {\r\n    Write-Error \"Could not update attribute [expireDate] of AD user [$userPrincipalName] to [$expDate]. Error: $($_.Exception.Message)\"\r\n    $Log = @{\r\n            Action            = \"UpdateAccount\" # optional. ENUM (undefined = default) \r\n            System            = \"ActiveDirectory\" # optional (free format text) \r\n            Message           = \"Failed to update attribute [expireDate] of AD user [$userPrincipalName] to [$expDate]\" # required (free format text) \r\n            IsError           = $true # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) \r\n            TargetDisplayName = $adUser.name # optional (free format text) \r\n            TargetIdentifier  = $([string]$adUser.SID) # optional (free format text) \r\n        }\r\n    #send result back  \r\n    Write-Information -Tags \"Audit\" -MessageData $log    \r\n}","runInCloud":false}
+{"name":"AD - Account - Update account expires","script":"# variables configured in form:\r\n$user = $form.gridUsers\r\n$blnExpDate = $form.blnExpDate\r\n$expireDate = $form.expireDate\r\n\r\n# Set debug logging\r\n$VerbosePreference = \"SilentlyContinue\"\r\n$InformationPreference = \"Continue\"\r\n$WarningPreference = \"Continue\"\r\n\r\n# Set TLS to accept TLS, TLS 1.1 and TLS 1.2\r\n[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12\r\n\r\ntry {\r\n    $actionMessage = \"updating AD account expiration date for user [$($user.UserPrincipalName)] with objectguid [$($user.ObjectGuid)]\"\r\n\r\n    # Determine the expiration date value\r\n    if ($blnExpDate -ne \u0027true\u0027) {\r\n        $newExpDate = $null\r\n    }\r\n    else {\r\n        # Convert to DateTime and get only the date part (strips time)\r\n        # Then add 1 day to ensure account works the whole selected day\r\n        # Result: Account expires at 00:00:00 on the day AFTER the selected date\r\n        $newExpDate = ([Datetime]$expireDate).Date.AddDays(1)\r\n    }\r\n\r\n    $splatSetADAccountExpirationParams = @{\r\n        Identity = $user.ObjectGuid\r\n        DateTime = $newExpDate\r\n    }\r\n    \r\n    $null = Set-ADAccountExpiration @splatSetADAccountExpirationParams\r\n    \r\n    $Log = @{\r\n        Action            = \"UpdateAccount\" # optional. ENUM (undefined = default) \r\n        System            = \"ActiveDirectory\" # optional (free format text) \r\n        Message           = \"Successfully updated account expiration date for AD user [$($user.UserPrincipalName)] to [$newExpDate]\" # required (free format text) \r\n        IsError           = $false # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) \r\n        TargetDisplayName = $user.UserPrincipalName # optional (free format text) \r\n        TargetIdentifier  = $user.ObjectGuid # optional (free format text) \r\n    }\r\n    #send result back  \r\n    Write-Information -Tags \"Audit\" -MessageData $log    \r\n}\r\ncatch {\r\n    $ex = $PSItem\r\n    $auditMessage = \"Error $($actionMessage). Error: $($ex.Exception.Message)\"\r\n    $warningMessage = \"Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)\"    \r\n\r\n    $Log = @{\r\n        Action            = \"UpdateAccount\" # optional. ENUM (undefined = default) \r\n        System            = \"ActiveDirectory\" # optional (free format text) \r\n        Message           = \"Error $($actionMessage). Error Message: $auditMessage\" # required (free format text) \r\n        IsError           = $true # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) \r\n        TargetDisplayName = $user.UserPrincipalName # optional (free format text) \r\n        TargetIdentifier  = $user.ObjectGuid # optional (free format text) \r\n    }\r\n    #send result back  \r\n    Write-Information -Tags \"Audit\" -MessageData $log      \r\n    Write-Warning $warningMessage   \r\n    Write-Error $auditMessage\r\n}","runInCloud":false}
 '@ 
 
 Invoke-HelloIDDelegatedForm -DelegatedFormName $delegatedFormName -DynamicFormGuid $dynamicFormGuid -AccessGroups $delegatedFormAccessGroupGuids -Categories $delegatedFormCategoryGuids -UseFaIcon "True" -FaIcon "fa fa-calendar" -task $tmpTask -returnObject ([Ref]$delegatedFormRef) 

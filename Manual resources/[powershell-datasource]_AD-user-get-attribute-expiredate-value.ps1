@@ -1,21 +1,69 @@
-$UserPrincipalName = $datasource.selectedUser.UserPrincipalName
-Write-information "Searching AD user [$userPrincipalName]"
- 
-try {
-    $adUser = Get-ADuser -Filter { UserPrincipalName -eq $userPrincipalName } -Properties AccountExpirationDate | Select AccountExpirationDate
-    Write-information "Found AD user [$userPrincipalName]"
+# Variables configured in datasource
+$selectedUser = $datasource.selectedUser
 
-    #Default date for datetime selector 
-    $expDate = Get-Date -Format s     
-     
-    if(-not [String]::IsNullOrEmpty($($adUser.AccountExpirationDate))) {
-        $expDate = Get-Date $($adUser.AccountExpirationDate) -Format s        
+# Fixed values
+$propertiesToSelect = @(
+    "ObjectGuid",
+    "UserPrincipalName",
+    "AccountExpirationDate"
+) # Properties to select from Microsoft AD, comma separated
+
+# Set debug logging
+$VerbosePreference = "SilentlyContinue"
+$InformationPreference = "Continue"
+$WarningPreference = "Continue"
+
+try {
+    $actionMessage = "querying AD user [$($selectedUser.UserPrincipalName)] to get AccountExpirationDate"
+
+    $getADUserSplatParams = @{
+        Filter      = "UserPrincipalName -eq '$($selectedUser.UserPrincipalName)'"
+        Properties  = $propertiesToSelect
+        Verbose     = $false
+        ErrorAction = "Stop"
     }
     
-    Write-output @{ expireDate = "$expDate" }
+    $adUser = Get-ADUser @getADUserSplatParams | Select-Object -Property $propertiesToSelect
+
+    Write-Information "Queried AD user [$($selectedUser.UserPrincipalName)]. Result: $(if ($null -ne $adUser) { 'Found' } else { 'Not found' })"
+
+    if ($null -ne $adUser) {
+        # Default date for datetime selector (use current date if no expiration date is set)
+        if (-not [String]::IsNullOrEmpty($adUser.AccountExpirationDate)) {
+            $expDate = Get-Date $adUser.AccountExpirationDate -Format s
+        }
+        else {
+            $expDate = Get-Date -Format s
+        }
+        
+        Write-Information "Account AccountExpirationDate for user [$($selectedUser.UserPrincipalName)]: $expDate"
+        
+        # Output result
+        Write-Output @{ 
+            expireDate = "$expDate"
+        }
+    }
+    else {
+        Write-Warning "AD user [$($selectedUser.UserPrincipalName)] not found"
+        
+        # Output default date
+        $expDate = Get-Date -Format s
+        Write-Output @{ 
+            expireDate = "$expDate"
+        }
+    }
+}
+catch {
+    $ex = $PSItem
+    $auditMessage = "Error $($actionMessage). Error: $($ex.Exception.Message)"
+    $warningMessage = "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+
+    Write-Warning $warningMessage
+    Write-Error $auditMessage
     
-    Write-information "Account AccountExpirationDate: $expDate"  
-} catch {
-    Write-error "Error retrieving AD user [$userPrincipalName] account status. Error: $($_.Exception.Message)" -Event Error     
-    return
+    # Output default date on error
+    $expDate = Get-Date -Format s
+    Write-Output @{ 
+        expireDate = "$expDate"
+    }
 }

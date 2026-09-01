@@ -1,67 +1,82 @@
-<!-- Description -->
+# HelloID-Conn-SA-Full-AD-AccountUpdateExpireDate
+
+| :information_source: Information |
+|:---|
+| This repository contains the connector and configuration code only. The implementer is responsible for acquiring the connection details such as username, password, certificate, etc. You might even need to sign a contract or agreement with the supplier before implementing this connector. Please contact the client's application manager to coordinate the connector requirements. |
+
 ## Description
-This HelloID Service Automation Delegated Form provides update AD account expire date functionality. The following options are available:
- 1. Search and select the target AD user account
- 2. Show basic AD user account attributes of selected target user
- 3. Enable or disable account expires and specifying the expire date
- 4. Update AD user account expire date
+_HelloID-Conn-SA-Full-AD-AccountUpdateExpireDate_ is a delegated form designed for use with HelloID Service Automation (SA). It can be imported into HelloID and customized according to your requirements.
 
+By using this delegated form, you can manage Active Directory account expiration dates. The following options are available:
 
-## Versioning
-| Version | Description | Date |
-| - | - | - |
-| 1.0.2   | Added version number and updated with code for SA agent and audit logging | 2022/08/02  |
-| 1.0.1   | Added version number and updated all-in-one script | 2021/11/03  |
-| 1.0.0   | Initial release | 2020/09/07  |
+1. Search for and select the target Active Directory (AD) user account by Name, DisplayName, UPN, or Mail address.
+2. View basic attributes of the selected AD user account.
+3. View the current account expiration status and date.
+4. Enable or disable account expiration and specify a new expiration date with comprehensive audit logging.
 
-<!-- TABLE OF CONTENTS -->
-## Table of Contents
-* [Description](#description)
-* [All-in-one PowerShell setup script](#all-in-one-powershell-setup-script)
-  * [Getting started](#getting-started)
-* [Post-setup configuration](#post-setup-configuration)
-* [Manual resources](#manual-resources)
-* [Getting help](#getting-help)
+## Getting started
 
+### Requirements
 
-## All-in-one PowerShell setup script
-The PowerShell script "createform.ps1" contains a complete PowerShell script using the HelloID API to create the complete Form including user defined variables, tasks and data sources.
+• **Active Directory Access**:
+  The connector requires access to an Active Directory domain with sufficient permissions to modify account expiration settings. A service account with appropriate AD permissions is necessary.
 
- _Please note that this script asumes none of the required resources do exists within HelloID. The script does not contain versioning or source control_
+• **HelloID Agent**:
+  A HelloID Agent must be installed and configured to communicate with the Active Directory domain.
 
+• **PowerShell module 'ActiveDirectory'**:
+  The HelloID Agent must have PowerShell available with Active Directory module support.
 
-### Getting started
-Please follow the documentation steps on [HelloID Docs](https://docs.helloid.com/hc/en-us/articles/360017556559-Service-automation-GitHub-resources) in order to setup and run the All-in one Powershell Script in your own environment.
+### Connection settings
 
- 
-## Post-setup configuration
-After the all-in-one PowerShell script has run and created all the required resources. The following items need to be configured according to your own environment
- 1. Update the following [user defined variables](https://docs.helloid.com/hc/en-us/articles/360014169933-How-to-Create-and-Manage-User-Defined-Variables)
-<table>
-  <tr><td><strong>Variable name</strong></td><td><strong>Example value</strong></td><td><strong>Description</strong></td></tr>
-  <tr><td>ADusersSearchOU</td><td>[{ "OU": "OU=Disabled Users,OU=HelloID Training,DC=veeken,DC=local"},{ "OU": "OU=Users,OU=HelloID Training,DC=veeken,DC=local"},{"OU": "OU=External,OU=HelloID Training,DC=veeken,DC=local"}]</td><td>Array of Active Directory OUs for scoping AD user accounts in the search result of this form</td></tr>
-</table>
+The following user-defined variables are used by the connector.
 
-## Manual resources
-This Delegated Form uses the following resources in order to run
+| Setting | Description | Mandatory |
+|---------|-------------|-----------|
+| ADusersSearchOU | Array of Active Directory OUs for scoping AD user accounts in the search result of this form | Yes |
 
-### Powershell data source 'AD-user-generate-table-wildcard-update-account-expires'
-This Powershell data source runs an Active Directory query to search for matching AD user accounts. It uses an array of Active Directory OU's specified as HelloID user defined variable named _"ADusersSearchOU"_ to specify the search scope.
+## Remarks
 
-### Powershell data source 'AD-user-generate-table-attributes-basic-update-account-expires'
-This Powershell data source runs an Active Directory query to select a list of basic user attributes of the selected AD user account.  
+### User Search
 
-### Powershell data source 'AD-user-get-attribute-expiredate-set'
-This Powershell data source runs an Active Directory query to check if the expire date is set for the selected AD user account.
+• **Search Functionality:** Users can search for accounts using a wildcard (`*`) to return all users within the specified OUs, or by entering partial text to search across Name, DisplayName, UserPrincipalName, and Mail attributes.
 
-### Powershell data source 'AD-user-get-attribute-expiredate-value'
-This Powershell data source runs an Active Directory query to receive the current expire date value for the selected user account.
+• **The search scope is limited to the OUs defined in the `ADusersSearchOU` variable.**
 
-### Delegated form task 'AD-user-set-expiredate'
-This delegated form task will update the AD user account's expire date in Active Directory.
+### Account Expiration
+
+• **Date Format:** The form uses DateTime picker for selecting expiration dates.
+
+• **Clearing Expiration:** To set an account to never expire, disable the account expiration toggle.
+
+• **Immediate Effect:** Changes to account expiration take effect immediately in Active Directory.
+
+## Development resources
+
+### PowerShell Module
+This connector uses the ActiveDirectory PowerShell module for managing Active Directory user account expiration settings.
+
+- [ActiveDirectory Module Documentation](https://learn.microsoft.com/en-us/powershell/module/activedirectory/)
+
+### Cmdlets
+The following PowerShell cmdlets are used by the connector:
+
+| Cmdlet | Description |
+| --- | --- |
+| Get-ADUser | Retrieves Active Directory user accounts |
+| Set-ADUser | Modifies Active Directory user account properties |
+| Set-ADAccountExpiration | Sets the expiration date for an Active Directory account |
+
+### Cmdlet documentation
+- [Get-ADUser](https://learn.microsoft.com/en-us/powershell/module/activedirectory/get-aduser)
+- [Set-ADUser](https://learn.microsoft.com/en-us/powershell/module/activedirectory/set-aduser)
+- [Set-ADAccountExpiration](https://learn.microsoft.com/en-us/powershell/module/activedirectory/set-adaccountexpiration)
 
 ## Getting help
-_If you need help, feel free to ask questions on our [forum](https://forum.helloid.com/forum/helloid-connectors/service-automation/508-helloid-sa-active-directory-ad-account-update-expire-date)_
 
-## HelloID Docs
-The official HelloID documentation can be found at: https://docs.helloid.com/
+| :bulb: Tip |
+|:---|
+| For more information on Delegated Forms, please refer to our [documentation](https://docs.helloid.com/en/service-automation/delegated-forms.html) pages. |
+
+## HelloID docs
+The official HelloID documentation can be found at: [https://docs.helloid.com/](https://docs.helloid.com/)
